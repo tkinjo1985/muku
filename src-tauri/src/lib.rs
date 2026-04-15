@@ -3,10 +3,13 @@ mod db;
 mod llm;
 
 use std::path::PathBuf;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
-use tauri::Manager;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Manager, WindowEvent};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 pub struct SidecarHandle(pub Mutex<Option<Child>>);
 
@@ -18,6 +21,7 @@ fn resolve_binaries_dir() -> PathBuf {
             .ok()
             .and_then(|p| p.parent().map(|p| p.to_path_buf()))
             .unwrap_or_else(|| PathBuf::from("."))
+            .join("binaries")
     }
 }
 
@@ -41,34 +45,119 @@ fn spawn_llama_server() -> std::io::Result<Child> {
     eprintln!("[muku] spawning llama-server: {}", exe.display());
     eprintln!("[muku] model: {}", model.display());
 
-    Command::new(&exe)
-        .current_dir(&bin_dir)
+    let mut cmd = Command::new(&exe);
+    cmd.current_dir(&bin_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .args([
-            "-m",
-            model.to_str().unwrap_or_default(),
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "18080",
-            "-c",
-            "4096",
-            "-ngl",
-            "99",
-            "--jinja",
-        ])
-        .spawn()
+        "-m",
+        model.to_str().unwrap_or_default(),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "18080",
+        "-c",
+        "4096",
+        "-ngl",
+        "99",
+        "--jinja",
+    ]);
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    cmd.spawn()
+}
+
+fn kill_sidecar(app: &AppHandle) {
+    if let Some(handle) = app.try_state::<SidecarHandle>() {
+        if let Ok(mut guard) = handle.0.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+}
+
+fn force_focus(window: &tauri::WebviewWindow) {
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_always_on_top(true);
+    let _ = window.set_focus();
+    let _ = window.set_always_on_top(false);
+}
+
+fn toggle_window(app: &AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let visible = window.is_visible().unwrap_or(false);
+    let focused = window.is_focused().unwrap_or(false);
+    if visible && focused {
+        let _ = window.hide();
+    } else {
+        force_focus(&window);
+    }
+}
+
+fn toggle_shortcut_candidates() -> Vec<(&'static str, Shortcut)> {
+    let ctrl_alt = Some(Modifiers::CONTROL | Modifiers::ALT);
+    let ctrl_shift_alt = Some(Modifiers::CONTROL | Modifiers::SHIFT | Modifiers::ALT);
+    let win_alt = Some(Modifiers::SUPER | Modifiers::ALT);
+    vec![
+        ("Ctrl+Alt+M", Shortcut::new(ctrl_alt, Code::KeyM)),
+        ("Ctrl+Shift+Alt+M", Shortcut::new(ctrl_shift_alt, Code::KeyM)),
+        ("Win+Alt+M", Shortcut::new(win_alt, Code::KeyM)),
+        ("Ctrl+Shift+Alt+Space", Shortcut::new(ctrl_shift_alt, Code::Space)),
+    ]
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                force_focus(&window);
+            }
+        }))
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:muku.db", db::migrations())
                 .build(),
         )
-        .setup(|app| {
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        toggle_window(app);
+                    }
+                })
+                .build(),
+        )
+        .setup(move |app| {
+            let gs = app.global_shortcut();
+            let mut registered: Option<&'static str> = None;
+            for (label, shortcut) in toggle_shortcut_candidates() {
+                match gs.register(shortcut) {
+                    Ok(_) => {
+                        eprintln!("[muku] registered toggle shortcut: {label}");
+                        registered = Some(label);
+                        break;
+                    }
+                    Err(e) => eprintln!("[muku] shortcut {label} unavailable: {e}"),
+                }
+            }
+            if registered.is_none() {
+                eprintln!("[muku] no toggle shortcut could be registered; use tray icon instead");
+            }
+
             match spawn_llama_server() {
                 Ok(child) => {
                     app.manage(SidecarHandle(Mutex::new(Some(child))));
@@ -77,17 +166,42 @@ pub fn run() {
                     eprintln!("[muku] failed to spawn llama-server: {e}");
                 }
             }
+
+            let show_hide = MenuItem::with_id(app, "toggle", "表示/非表示", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&show_hide, &quit])?;
+
+            let _tray = TrayIconBuilder::with_id("muku-tray")
+                .icon(app.default_window_icon().cloned().unwrap())
+                .tooltip("Muku - AIタスクマネージャー")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| match event.id().as_ref() {
+                    "toggle" => toggle_window(app),
+                    "quit" => {
+                        kill_sidecar(app);
+                        app.exit(0);
+                    }
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        toggle_window(tray.app_handle());
+                    }
+                })
+                .build(app)?;
+
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                if let Some(handle) = window.app_handle().try_state::<SidecarHandle>() {
-                    if let Ok(mut guard) = handle.0.lock() {
-                        if let Some(mut child) = guard.take() {
-                            let _ = child.kill();
-                        }
-                    }
-                }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let _ = window.hide();
+                api.prevent_close();
             }
         })
         .invoke_handler(tauri::generate_handler![commands::chat::chat_send])

@@ -1,5 +1,5 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// GUI app — never open a console window on Windows, even in debug builds
+#![windows_subsystem = "windows"]
 
 fn main() {
     muku_lib::run()
