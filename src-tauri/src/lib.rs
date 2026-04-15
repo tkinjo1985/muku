@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod llm;
+mod llm_init;
 mod notifier;
 
 use std::path::PathBuf;
@@ -36,22 +37,35 @@ fn resolve_binaries_dir() -> PathBuf {
     }
 }
 
-fn resolve_model_path() -> PathBuf {
+pub const MODEL_FILENAME: &str = "gemma-4-E4B-it-Q4_K_M.gguf";
+pub const MODEL_URL: &str =
+    "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf";
+
+pub fn resolve_model_path(app: &AppHandle) -> PathBuf {
     if cfg!(debug_assertions) {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models/gemma-4-E4B-it-Q4_K_M.gguf")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("models")
+            .join(MODEL_FILENAME)
     } else {
-        std::env::current_exe()
+        app.path()
+            .app_local_data_dir()
             .ok()
-            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("models/gemma-4-E4B-it-Q4_K_M.gguf")
+            .map(|p| p.join("models").join(MODEL_FILENAME))
+            .unwrap_or_else(|| {
+                std::env::current_exe()
+                    .ok()
+                    .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                    .unwrap_or_else(|| PathBuf::from("."))
+                    .join("models")
+                    .join(MODEL_FILENAME)
+            })
     }
 }
 
-fn spawn_llama_server() -> std::io::Result<Child> {
+pub fn spawn_llama_server(app: &AppHandle) -> std::io::Result<Child> {
     let bin_dir = resolve_binaries_dir();
     let exe = bin_dir.join("llama-server-x86_64-pc-windows-msvc.exe");
-    let model = resolve_model_path();
+    let model = resolve_model_path(app);
 
     eprintln!("[muku] spawning llama-server: {}", exe.display());
     eprintln!("[muku] model: {}", model.display());
@@ -174,14 +188,11 @@ pub fn run() {
                 eprintln!("[muku] no toggle shortcut could be registered; use tray icon instead");
             }
 
-            match spawn_llama_server() {
-                Ok(child) => {
-                    app.manage(SidecarHandle(Mutex::new(Some(child))));
-                }
-                Err(e) => {
-                    eprintln!("[muku] failed to spawn llama-server: {e}");
-                }
-            }
+            app.manage(llm_init::LlmStatusState::default());
+            let init_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                llm_init::init(init_handle).await;
+            });
 
             let show_hide = MenuItem::with_id(app, "toggle", "表示/非表示", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
@@ -222,7 +233,10 @@ pub fn run() {
                 api.prevent_close();
             }
         })
-        .invoke_handler(tauri::generate_handler![commands::chat::chat_send])
+        .invoke_handler(tauri::generate_handler![
+            commands::chat::chat_send,
+            llm_init::get_llm_status,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

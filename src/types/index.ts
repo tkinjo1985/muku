@@ -23,6 +23,13 @@ export interface Message {
 
 export type TabKey = 'chat' | 'tasks' | 'settings';
 
+export type LlmStatus =
+  | { kind: 'checking' }
+  | { kind: 'downloading'; downloaded: number; total: number }
+  | { kind: 'modelLoading' }
+  | { kind: 'ready' }
+  | { kind: 'error'; message: string };
+
 export interface NotificationSettings {
   enabled: boolean;
   dueMinutesBefore: number;
