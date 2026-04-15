@@ -457,6 +457,49 @@ textarea {
   flex-wrap: wrap;
 }
 
+.settings-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.settings-radio:has(input:checked) {
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.settings-radio input[type='radio'] {
+  margin-top: 3px;
+  accent-color: var(--accent-start);
+  cursor: pointer;
+}
+
+.settings-radio > div {
+  flex: 1;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.settings-model-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.settings-model-meta span {
+  padding: 1px 6px;
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+
 .splash {
   display: flex;
   flex-direction: column;

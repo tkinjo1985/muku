@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { clearAllMessages } from '../lib/db';
-import { loadSettings, saveSettings } from '../lib/settings';
-import { DEFAULT_SETTINGS, type NotificationSettings } from '../types';
+import { loadModelSelection, loadSettings, saveSettings } from '../lib/settings';
+import {
+  DEFAULT_SETTINGS,
+  MODEL_INFO,
+  type ModelSelection,
+  type NotificationSettings,
+} from '../types';
 
 export default function SettingsView() {
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_SETTINGS);
@@ -38,6 +44,8 @@ export default function SettingsView() {
 
   return (
     <div className="settings-view">
+      <ModelSection />
+
       <section className="settings-section">
         <label className="settings-row toggle">
           <span>通知を有効にする</span>
@@ -130,6 +138,98 @@ export default function SettingsView() {
         <ClearHistoryButton />
       </section>
     </div>
+  );
+}
+
+function ModelSection() {
+  const [current, setCurrent] = useState<ModelSelection | null>(null);
+  const [pending, setPending] = useState<ModelSelection | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const sel = await loadModelSelection();
+      setCurrent(sel);
+    })();
+  }, []);
+
+  if (!current) {
+    return (
+      <section className="settings-section">
+        <h2>AI モデル</h2>
+        <div className="settings-detail">読み込み中…</div>
+      </section>
+    );
+  }
+
+  const target = pending ?? current;
+
+  async function onConfirmSwitch() {
+    if (!pending || pending === current) return;
+    setSwitching(true);
+    setError(null);
+    try {
+      await invoke('switch_model', { selection: pending });
+      setCurrent(pending);
+      setPending(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  const changed = pending !== null && pending !== current;
+
+  return (
+    <section className="settings-section">
+      <h2>AI モデル</h2>
+      {(['e2b', 'e4b'] as ModelSelection[]).map((m) => {
+        const info = MODEL_INFO[m];
+        return (
+          <label key={m} className="settings-radio">
+            <input
+              type="radio"
+              name="model"
+              value={m}
+              checked={target === m}
+              onChange={() => setPending(m)}
+              disabled={switching}
+            />
+            <div>
+              <div>{info.label}</div>
+              <div className="settings-model-meta">
+                <span>{info.params} パラメータ</span>
+                <span>ディスク {info.diskGb} GB</span>
+                <span>推奨 RAM {info.ramGb} GB+</span>
+              </div>
+              <div className="settings-detail">{info.note}</div>
+            </div>
+          </label>
+        );
+      })}
+      {changed && (
+        <div className="settings-confirm">
+          <span>
+            切替するとモデルを読み込み直します
+            {pending === 'e4b' && current === 'e2b' ? '（5.3 GB のダウンロードが発生）' : ''}
+            {pending === 'e2b' && current === 'e4b' ? '（3.1 GB のダウンロードが発生、既に DL 済みならスキップ）' : ''}
+          </span>
+          <button className="settings-save" onClick={onConfirmSwitch} disabled={switching}>
+            {switching ? '切替中…' : '切り替える'}
+          </button>
+          <button
+            className="settings-cancel"
+            onClick={() => setPending(null)}
+            disabled={switching}
+          >
+            キャンセル
+          </button>
+        </div>
+      )}
+      {error && <div className="settings-detail splash-error">{error}</div>}
+    </section>
   );
 }
 

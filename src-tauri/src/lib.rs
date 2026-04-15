@@ -38,29 +38,78 @@ fn resolve_binaries_dir() -> PathBuf {
     }
 }
 
-pub const MODEL_FILENAME: &str = "gemma-4-E4B-it-Q4_K_M.gguf";
-pub const MODEL_URL: &str =
-    "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf";
+use tauri_plugin_store::StoreExt;
 
-pub fn resolve_model_path(app: &AppHandle) -> PathBuf {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ModelSelection {
+    E2B,
+    E4B,
+}
+
+impl ModelSelection {
+    pub fn id(self) -> &'static str {
+        match self {
+            ModelSelection::E2B => "e2b",
+            ModelSelection::E4B => "e4b",
+        }
+    }
+
+    pub fn filename(self) -> &'static str {
+        match self {
+            ModelSelection::E2B => "gemma-4-E2B-it-Q4_K_M.gguf",
+            ModelSelection::E4B => "gemma-4-E4B-it-Q4_K_M.gguf",
+        }
+    }
+
+    pub fn url(self) -> &'static str {
+        match self {
+            ModelSelection::E2B => "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf",
+            ModelSelection::E4B => "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "e2b" => Some(ModelSelection::E2B),
+            "e4b" => Some(ModelSelection::E4B),
+            _ => None,
+        }
+    }
+}
+
+pub fn read_model_selection(app: &AppHandle) -> ModelSelection {
+    app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get("model"))
+        .and_then(|v| v.as_str().map(str::to_string))
+        .and_then(|s| ModelSelection::parse(&s))
+        .unwrap_or(ModelSelection::E2B)
+}
+
+fn models_dir(app: &AppHandle) -> PathBuf {
     if cfg!(debug_assertions) {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("models")
-            .join(MODEL_FILENAME)
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models")
     } else {
         app.path()
             .app_local_data_dir()
             .ok()
-            .map(|p| p.join("models").join(MODEL_FILENAME))
+            .map(|p| p.join("models"))
             .unwrap_or_else(|| {
                 std::env::current_exe()
                     .ok()
                     .and_then(|p| p.parent().map(|p| p.to_path_buf()))
                     .unwrap_or_else(|| PathBuf::from("."))
                     .join("models")
-                    .join(MODEL_FILENAME)
             })
     }
+}
+
+pub fn resolve_model_path(app: &AppHandle) -> PathBuf {
+    models_dir(app).join(read_model_selection(app).filename())
+}
+
+pub fn resolve_model_url(app: &AppHandle) -> &'static str {
+    read_model_selection(app).url()
 }
 
 pub fn spawn_llama_server(app: &AppHandle) -> std::io::Result<Child> {
@@ -238,6 +287,7 @@ pub fn run() {
             commands::chat::chat_send,
             llm_init::get_llm_status,
             llm_init::retry_llm_init,
+            llm_init::switch_model,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

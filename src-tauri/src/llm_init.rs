@@ -6,7 +6,9 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
 
-use crate::{job_guard, resolve_model_path, spawn_llama_server, SidecarHandle, MODEL_URL};
+use crate::{
+    job_guard, resolve_model_path, resolve_model_url, spawn_llama_server, SidecarHandle,
+};
 
 const LLAMA_HEALTH_URL: &str = "http://127.0.0.1:18080/health";
 const SERVER_READY_TIMEOUT_SECS: u64 = 300;
@@ -109,7 +111,7 @@ async fn download_model(app: &AppHandle, dest: &Path) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
-    let mut req = client.get(MODEL_URL);
+    let mut req = client.get(resolve_model_url(app));
     if existing > 0 {
         req = req.header("Range", format!("bytes={existing}-"));
     }
@@ -203,5 +205,35 @@ pub fn retry_llm_init(app: AppHandle, state: tauri::State<'_, LlmStatusState>) -
     tauri::async_runtime::spawn(async move {
         init(app_clone).await;
     });
+    Ok(())
+}
+
+#[tauri::command]
+pub fn switch_model(app: AppHandle, selection: String) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+
+    if crate::ModelSelection::parse(&selection).is_none() {
+        return Err(format!("unknown model selection: {selection}"));
+    }
+
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    store.set("model", serde_json::Value::String(selection));
+    store.save().map_err(|e| e.to_string())?;
+
+    if let Some(handle) = app.try_state::<SidecarHandle>() {
+        if let Ok(mut guard) = handle.0.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+
+    emit_status(&app, LlmStatus::Checking);
+
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        init(app_clone).await;
+    });
+
     Ok(())
 }

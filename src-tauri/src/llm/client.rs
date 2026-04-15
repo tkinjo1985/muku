@@ -34,14 +34,13 @@ struct ChoiceMessage {
     content: String,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct LlmResponse {
     pub message: String,
-    #[serde(default)]
     pub actions: Vec<TaskAction>,
 }
 
-#[derive(Deserialize, Serialize, Clone, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct TaskAction {
     #[serde(rename = "type")]
     pub action_type: String,
@@ -64,9 +63,56 @@ pub struct TaskPayload {
     pub category: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct RawAction {
+    #[serde(rename = "type")]
+    action_type: String,
+    #[serde(default)]
+    task: Option<TaskPayload>,
+    #[serde(flatten, default)]
+    flat: TaskPayload,
+}
+
+impl From<RawAction> for TaskAction {
+    fn from(r: RawAction) -> Self {
+        let task = match r.task {
+            Some(mut t) => {
+                t.id = t.id.or(r.flat.id);
+                t.title = t.title.or(r.flat.title);
+                t.priority = t.priority.or(r.flat.priority);
+                t.due = t.due.or(r.flat.due);
+                t.due_at = t.due_at.or(r.flat.due_at);
+                t.category = t.category.or(r.flat.category);
+                t
+            }
+            None => r.flat,
+        };
+        TaskAction {
+            action_type: r.action_type,
+            task,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct RawLlmResponse {
+    message: String,
+    #[serde(default)]
+    actions: Vec<RawAction>,
+}
+
+impl From<RawLlmResponse> for LlmResponse {
+    fn from(r: RawLlmResponse) -> Self {
+        LlmResponse {
+            message: r.message,
+            actions: r.actions.into_iter().map(TaskAction::from).collect(),
+        }
+    }
+}
+
 pub async fn call_chat(messages: &[ChatMessage]) -> Result<LlmResponse, String> {
     let body = ChatRequest {
-        model: "gemma-4-e4b-it",
+        model: "gemma-4-e2b-it",
         messages,
         temperature: 0.3,
         max_tokens: 1024,
@@ -98,7 +144,7 @@ pub async fn call_chat(messages: &[ChatMessage]) -> Result<LlmResponse, String> 
         .map(|c| c.message.content.clone())
         .ok_or_else(|| "LLM returned empty choices".to_string())?;
 
-    serde_json::from_str::<LlmResponse>(&content).map_err(|e| {
-        format!("Failed to parse LLM JSON: {e}. Raw content: {content}")
-    })
+    serde_json::from_str::<RawLlmResponse>(&content)
+        .map(LlmResponse::from)
+        .map_err(|e| format!("Failed to parse LLM JSON: {e}. Raw content: {content}"))
 }
