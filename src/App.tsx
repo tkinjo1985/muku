@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ChatView from './components/ChatView';
+import SettingsView from './components/SettingsView';
 import TaskListView from './components/TaskListView';
 import { useChat } from './hooks/useChat';
 import type { TabKey } from './types';
@@ -26,6 +27,13 @@ export default function App() {
           >
             Tasks
           </button>
+          <button
+            className={tab === 'settings' ? 'active' : ''}
+            onClick={() => setTab('settings')}
+            aria-label="Settings"
+          >
+            ⚙
+          </button>
         </nav>
       </header>
       <main className="app-main">
@@ -34,6 +42,9 @@ export default function App() {
         </div>
         <div className="view-pane" hidden={tab !== 'tasks'}>
           <TaskListView />
+        </div>
+        <div className="view-pane" hidden={tab !== 'settings'}>
+          <SettingsView />
         </div>
       </main>
     </div>

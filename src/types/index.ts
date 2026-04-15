@@ -8,6 +8,8 @@ export interface Task {
   status: Status;
   category: string | null;
   due: string | null;
+  due_at: string | null;
+  last_notified_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,4 +21,22 @@ export interface Message {
   created_at: string;
 }
 
-export type TabKey = 'chat' | 'tasks';
+export type TabKey = 'chat' | 'tasks' | 'settings';
+
+export interface NotificationSettings {
+  enabled: boolean;
+  dueMinutesBefore: number;
+  notifyOnOverdue: boolean;
+  periodicIntervalMinutes: number;
+  periodicStartHour: number;
+  periodicEndHour: number;
+}
+
+export const DEFAULT_SETTINGS: NotificationSettings = {
+  enabled: true,
+  dueMinutesBefore: 15,
+  notifyOnOverdue: true,
+  periodicIntervalMinutes: 180,
+  periodicStartHour: 9,
+  periodicEndHour: 22,
+};

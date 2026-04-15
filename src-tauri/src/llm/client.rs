@@ -59,6 +59,8 @@ pub struct TaskPayload {
     #[serde(default)]
     pub due: Option<String>,
     #[serde(default)]
+    pub due_at: Option<String>,
+    #[serde(default)]
     pub category: Option<String>,
 }
 

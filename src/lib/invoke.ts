@@ -8,6 +8,7 @@ export interface TaskContext {
   status: 'todo' | 'done';
   category?: string | null;
   due?: string | null;
+  due_at?: string | null;
 }
 
 export interface HistoryMessage {
@@ -20,6 +21,7 @@ export interface TaskActionPayload {
   title?: string;
   priority?: string;
   due?: string;
+  due_at?: string;
   category?: string;
 }
 
@@ -41,6 +43,7 @@ export function taskToContext(t: Task): TaskContext {
     status: t.status,
     category: t.category ?? null,
     due: t.due ?? null,
+    due_at: t.due_at ?? null,
   };
 }
 

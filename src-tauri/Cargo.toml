@@ -25,3 +25,8 @@ tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
 tauri-plugin-global-shortcut = "2.3.1"
 tauri-plugin-single-instance = "2.4.1"
 tauri-plugin-window-state = "2.4.1"
+tauri-plugin-notification = "2.3.3"
+tauri-plugin-store = "2.4.2"
+chrono = "0.4.44"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "sqlite", "chrono"] }
+windows = { version = "0.62.2", features = ["Win32_UI_Shell", "Win32_Foundation"] }

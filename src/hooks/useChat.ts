@@ -29,6 +29,7 @@ async function applyAction(action: TaskAction): Promise<void> {
         priority: task.priority,
         category: task.category,
         due: task.due,
+        due_at: task.due_at,
       });
       return;
     }
@@ -49,6 +50,7 @@ async function applyAction(action: TaskAction): Promise<void> {
         priority: task.priority,
         category: task.category ?? undefined,
         due: task.due ?? undefined,
+        due_at: task.due_at ?? undefined,
       });
       return;
     }

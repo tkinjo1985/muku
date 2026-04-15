@@ -1,10 +1,21 @@
 mod commands;
 mod db;
 mod llm;
+mod notifier;
 
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+
+#[cfg(windows)]
+fn set_app_user_model_id() {
+    use windows::core::HSTRING;
+    use windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID;
+    unsafe {
+        let id: HSTRING = "com.takumi.muku.Muku".into();
+        let _ = SetCurrentProcessExplicitAppUserModelID(&id);
+    }
+}
 
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -119,6 +130,9 @@ fn toggle_shortcut_candidates() -> Vec<(&'static str, Shortcut)> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    set_app_user_model_id();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
@@ -127,6 +141,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:muku.db", db::migrations())
@@ -170,6 +186,8 @@ pub fn run() {
             let show_hide = MenuItem::with_id(app, "toggle", "表示/非表示", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "終了", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_hide, &quit])?;
+
+            notifier::start(app.handle().clone());
 
             let _tray = TrayIconBuilder::with_id("muku-tray")
                 .icon(app.default_window_icon().cloned().unwrap())
