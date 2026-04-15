@@ -6,7 +6,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
 
-use crate::{resolve_model_path, spawn_llama_server, SidecarHandle, MODEL_URL};
+use crate::{job_guard, resolve_model_path, spawn_llama_server, SidecarHandle, MODEL_URL};
 
 const LLAMA_HEALTH_URL: &str = "http://127.0.0.1:18080/health";
 const SERVER_READY_TIMEOUT_SECS: u64 = 300;
@@ -57,6 +57,9 @@ pub async fn init(app: AppHandle) {
 
     match spawn_llama_server(&app) {
         Ok(child) => {
+            if let Err(e) = job_guard::assign(&child) {
+                eprintln!("[muku] job_guard::assign failed: {e}");
+            }
             app.manage(SidecarHandle(Mutex::new(Some(child))));
         }
         Err(e) => {

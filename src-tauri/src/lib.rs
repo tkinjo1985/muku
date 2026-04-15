@@ -1,5 +1,6 @@
 mod commands;
 mod db;
+mod job_guard;
 mod llm;
 mod llm_init;
 mod notifier;
