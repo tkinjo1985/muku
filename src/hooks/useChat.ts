@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import {
   addMessage,
   addTask,
@@ -71,6 +72,7 @@ export function useChat() {
   const [error, setError] = useState<ChatError | null>(null);
 
   useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
     void (async () => {
       try {
         await pruneMessages(500);
@@ -79,7 +81,15 @@ export function useChat() {
       }
       const history = await listRecentMessages(20);
       setMessages(history);
+
+      unlisten = await listen('messages-changed', async () => {
+        const refreshed = await listRecentMessages(20);
+        setMessages(refreshed);
+      });
     })();
+    return () => {
+      unlisten?.();
+    };
   }, []);
 
   async function sendTrimmed(trimmed: string): Promise<void> {

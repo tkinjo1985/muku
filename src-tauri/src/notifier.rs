@@ -6,7 +6,7 @@ use chrono::{DateTime, FixedOffset, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_store::StoreExt;
 
 fn show_toast(app: &AppHandle, body: &str) {
@@ -178,6 +178,14 @@ pub fn start(app: AppHandle) {
     });
 }
 
+async fn insert_assistant_message(pool: &Pool<Sqlite>, content: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO messages (role, content) VALUES ('assistant', ?)")
+        .bind(content)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 async fn tick_due(
     app: &AppHandle,
     pool: &Pool<Sqlite>,
@@ -213,13 +221,27 @@ async fn tick_due(
             && last_notified.map_or(true, |t| *now - t >= overdue_cooldown);
 
         if should_notify_pre || should_notify_overdue {
-            let body = if should_notify_pre {
+            let toast_body = if should_notify_pre {
                 format!("あと {} 分で期限: {}", delta.num_minutes().max(0), row.title)
             } else {
                 format!("期限超過: {}", row.title)
             };
 
-            show_toast(app, &body);
+            let chat_body = if should_notify_pre {
+                format!(
+                    "「{}」、あと {} 分で期限です。準備できそう？",
+                    row.title,
+                    delta.num_minutes().max(0)
+                )
+            } else {
+                format!("「{}」の期限が過ぎたよ。今日中にいけそう？", row.title)
+            };
+
+            show_toast(app, &toast_body);
+            if let Err(e) = insert_assistant_message(pool, &chat_body).await {
+                eprintln!("[muku] insert chat message failed: {e}");
+            }
+            let _ = app.emit("messages-changed", ());
 
             let stamp = now.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
             let _ = sqlx::query("UPDATE tasks SET last_notified_at = ? WHERE id = ?")
