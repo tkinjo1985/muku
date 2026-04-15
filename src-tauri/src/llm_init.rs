@@ -185,3 +185,23 @@ async fn wait_for_server_ready() -> Result<(), String> {
 pub fn get_llm_status(state: tauri::State<'_, LlmStatusState>) -> LlmStatus {
     state.0.lock().map(|s| s.clone()).unwrap_or(LlmStatus::Checking)
 }
+
+#[tauri::command]
+pub fn retry_llm_init(app: AppHandle, state: tauri::State<'_, LlmStatusState>) -> Result<(), String> {
+    let current = state.0.lock().map(|s| s.clone()).unwrap_or(LlmStatus::Checking);
+    if !matches!(current, LlmStatus::Error { .. }) {
+        return Err("already initializing or ready".to_string());
+    }
+    if let Some(handle) = app.try_state::<SidecarHandle>() {
+        if let Ok(mut guard) = handle.0.lock() {
+            if let Some(mut child) = guard.take() {
+                let _ = child.kill();
+            }
+        }
+    }
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        init(app_clone).await;
+    });
+    Ok(())
+}

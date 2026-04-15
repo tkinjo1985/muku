@@ -6,6 +6,7 @@ import {
   deleteTask,
   listRecentMessages,
   listTasks,
+  pruneMessages,
   updateTask,
 } from '../lib/db';
 import { emitTasksChanged } from '../lib/events';
@@ -59,26 +60,33 @@ async function applyAction(action: TaskAction): Promise<void> {
   }
 }
 
+export interface ChatError {
+  message: string;
+  failedInput: string;
+}
+
 export function useChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ChatError | null>(null);
 
   useEffect(() => {
     void (async () => {
+      try {
+        await pruneMessages(500);
+      } catch (e) {
+        console.warn('pruneMessages failed', e);
+      }
       const history = await listRecentMessages(20);
       setMessages(history);
     })();
   }, []);
 
-  async function send(input: string): Promise<void> {
-    const trimmed = input.trim();
-    if (!trimmed || pending) return;
-
-    setError(null);
+  async function sendTrimmed(trimmed: string): Promise<void> {
     const userMsg = await addMessage('user', trimmed);
     setMessages((prev) => [...prev, userMsg]);
     setPending(true);
+    setError(null);
 
     try {
       const [activeTasks, recentHistory] = await Promise.all([
@@ -109,16 +117,28 @@ export function useChat() {
       if (changed) emitTasksChanged();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
-      const errMsg = await addMessage(
-        'assistant',
-        `エラーが発生しました: ${msg}`,
-      );
-      setMessages((prev) => [...prev, errMsg]);
+      setError({ message: msg, failedInput: trimmed });
     } finally {
       setPending(false);
     }
   }
 
-  return { messages, pending, error, send };
+  async function send(input: string): Promise<void> {
+    const trimmed = input.trim();
+    if (!trimmed || pending) return;
+    await sendTrimmed(trimmed);
+  }
+
+  async function retry(): Promise<void> {
+    if (!error || pending) return;
+    const { failedInput } = error;
+    setError(null);
+    await sendTrimmed(failedInput);
+  }
+
+  function dismissError(): void {
+    setError(null);
+  }
+
+  return { messages, pending, error, send, retry, dismissError };
 }

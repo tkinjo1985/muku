@@ -192,6 +192,50 @@ textarea {
   font-style: italic;
 }
 
+.chat-error {
+  align-self: stretch;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-error-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--prio-high);
+}
+
+.chat-error-detail {
+  font-size: 11px;
+  color: var(--text-dim);
+  word-break: break-word;
+}
+
+.chat-error-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.chat-error-actions button {
+  padding: 4px 12px;
+  font-size: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.chat-error-actions button:first-child {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: var(--prio-high);
+}
+
 .task-list {
   overflow-y: auto;
   padding: 14px;
@@ -376,6 +420,43 @@ textarea {
   cursor: not-allowed;
 }
 
+.settings-detail {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.settings-danger {
+  align-self: flex-start;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--prio-high);
+  border: 1px solid var(--prio-high);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.settings-danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.settings-cancel {
+  padding: 6px 14px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.settings-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  flex-wrap: wrap;
+}
+
 .splash {
   display: flex;
   flex-direction: column;
@@ -449,4 +530,19 @@ textarea {
 @keyframes splash-indeterminate {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(250%); }
+}
+
+.splash-retry {
+  margin-top: 12px;
+  padding: 8px 24px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.splash-retry:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

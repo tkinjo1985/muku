@@ -162,3 +162,16 @@ export async function addMessage(role: 'user' | 'assistant', content: string): P
     created_at: new Date().toISOString(),
   };
 }
+
+export async function pruneMessages(keepLast: number): Promise<void> {
+  const db = await getDb();
+  await db.execute(
+    'DELETE FROM messages WHERE id NOT IN (SELECT id FROM messages ORDER BY id DESC LIMIT ?)',
+    [keepLast],
+  );
+}
+
+export async function clearAllMessages(): Promise<void> {
+  const db = await getDb();
+  await db.execute('DELETE FROM messages');
+}

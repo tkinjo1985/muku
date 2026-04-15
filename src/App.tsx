@@ -11,7 +11,7 @@ import './styles/global.css';
 export default function App() {
   const [tab, setTab] = useState<TabKey>('chat');
   const llmStatus = useLlmStatus();
-  const { messages, pending, send } = useChat();
+  const { messages, pending, error, send, retry, dismissError } = useChat();
 
   if (llmStatus.kind !== 'ready') {
     return (
@@ -49,7 +49,14 @@ export default function App() {
       </header>
       <main className="app-main">
         <div className="view-pane" hidden={tab !== 'chat'}>
-          <ChatView messages={messages} pending={pending} onSend={send} />
+          <ChatView
+            messages={messages}
+            pending={pending}
+            error={error}
+            onSend={send}
+            onRetry={retry}
+            onDismissError={dismissError}
+          />
         </div>
         <div className="view-pane" hidden={tab !== 'tasks'}>
           <TaskListView />

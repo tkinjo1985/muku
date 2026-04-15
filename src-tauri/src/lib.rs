@@ -237,6 +237,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::chat::chat_send,
             llm_init::get_llm_status,
+            llm_init::retry_llm_init,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

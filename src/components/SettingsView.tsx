@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { clearAllMessages } from '../lib/db';
 import { loadSettings, saveSettings } from '../lib/settings';
 import { DEFAULT_SETTINGS, type NotificationSettings } from '../types';
 
@@ -123,6 +124,43 @@ export default function SettingsView() {
           {saving ? '保存中…' : saved ? '保存済み' : '保存'}
         </button>
       </div>
+
+      <section className="settings-section">
+        <h2>データ管理</h2>
+        <ClearHistoryButton />
+      </section>
+    </div>
+  );
+}
+
+function ClearHistoryButton() {
+  const [confirming, setConfirming] = useState(false);
+  const [cleared, setCleared] = useState(false);
+
+  async function onClear() {
+    await clearAllMessages();
+    setConfirming(false);
+    setCleared(true);
+    setTimeout(() => setCleared(false), 2000);
+  }
+
+  if (cleared) {
+    return <div className="settings-detail">履歴を削除しました。アプリを再起動すると反映されます</div>;
+  }
+
+  if (!confirming) {
+    return (
+      <button className="settings-danger" onClick={() => setConfirming(true)}>
+        会話履歴をすべて削除
+      </button>
+    );
+  }
+
+  return (
+    <div className="settings-confirm">
+      <span>本当に削除しますか？</span>
+      <button className="settings-danger" onClick={onClear}>削除する</button>
+      <button className="settings-cancel" onClick={() => setConfirming(false)}>キャンセル</button>
     </div>
   );
 }

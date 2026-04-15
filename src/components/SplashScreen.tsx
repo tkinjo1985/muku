@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import type { LlmStatus } from '../types';
 
 interface Props {
@@ -56,14 +58,37 @@ function renderBody(status: LlmStatus) {
     case 'ready':
       return <div className="splash-message">準備完了</div>;
     case 'error':
-      return (
-        <>
-          <div className="splash-message splash-error">起動に失敗しました</div>
-          <div className="splash-detail">{status.message}</div>
-          <div className="splash-detail splash-hint">
-            アプリを一度終了して再起動してください
-          </div>
-        </>
-      );
+      return <ErrorBody message={status.message} />;
   }
+}
+
+function ErrorBody({ message }: { message: string }) {
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  async function onRetry() {
+    setRetrying(true);
+    setRetryError(null);
+    try {
+      await invoke('retry_llm_init');
+    } catch (e) {
+      setRetryError(e instanceof Error ? e.message : String(e));
+      setRetrying(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="splash-message splash-error">起動に失敗しました</div>
+      <div className="splash-detail">{message}</div>
+      {retryError && <div className="splash-detail splash-error">{retryError}</div>}
+      <button
+        className="splash-retry"
+        onClick={onRetry}
+        disabled={retrying}
+      >
+        {retrying ? '再試行中…' : '再試行'}
+      </button>
+    </>
+  );
 }
