@@ -159,7 +159,7 @@ fn kill_sidecar(app: &AppHandle) {
     }
 }
 
-fn force_focus(window: &tauri::WebviewWindow) {
+pub fn force_focus(window: &tauri::WebviewWindow) {
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_always_on_top(true);

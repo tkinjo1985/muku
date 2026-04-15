@@ -7,8 +7,30 @@ use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 use tauri::{AppHandle, Manager};
-use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_store::StoreExt;
+
+fn show_toast(app: &AppHandle, body: &str) {
+    use tauri_winrt_notification::Toast;
+
+    let app_handle = app.clone();
+    let result = Toast::new(Toast::POWERSHELL_APP_ID)
+        .title("Muku")
+        .text1(body)
+        .on_activated(move |_args| {
+            eprintln!("[muku] toast activated");
+            if let Some(window) = app_handle.get_webview_window("main") {
+                crate::force_focus(&window);
+            }
+            Ok(())
+        })
+        .show();
+
+    if let Err(e) = result {
+        eprintln!("[muku] toast show failed: {e}");
+    } else {
+        eprintln!("[muku] toast shown: {body}");
+    }
+}
 
 const SETTINGS_FILE: &str = "settings.json";
 const SETTINGS_KEY: &str = "notifications";
@@ -197,12 +219,7 @@ async fn tick_due(
                 format!("期限超過: {}", row.title)
             };
 
-            let _ = app
-                .notification()
-                .builder()
-                .title("Muku")
-                .body(&body)
-                .show();
+            show_toast(app, &body);
 
             let stamp = now.format("%Y-%m-%dT%H:%M:%S%:z").to_string();
             let _ = sqlx::query("UPDATE tasks SET last_notified_at = ? WHERE id = ?")
@@ -244,12 +261,7 @@ async fn tick_periodic(
     };
 
     if should_fire {
-        let _ = app
-            .notification()
-            .builder()
-            .title("Muku")
-            .body(&format!("アクティブなタスク {} 件", count.0))
-            .show();
+        show_toast(app, &format!("アクティブなタスク {} 件", count.0));
 
         if let Ok(mut guard) = state.lock() {
             guard.last_sent_at = Some(*now);

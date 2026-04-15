@@ -2531,6 +2531,7 @@ dependencies = [
  "tauri-plugin-sql",
  "tauri-plugin-store",
  "tauri-plugin-window-state",
+ "tauri-winrt-notification",
  "tokio",
  "uuid",
  "windows 0.62.2",
