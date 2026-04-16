@@ -12,7 +12,6 @@
 - **常駐 & 即起動** — システムトレイ常駐、グローバルショートカットで瞬時に呼び出し
 - **期限通知** — タスクの期限前・超過時に Windows 通知 + チャット内リマインド
 - **モデル選択** — 速度優先（Gemma 4 E2B / 3.1GB）と精度優先（Gemma 4 E4B / 5.3GB）を設定から切替
-- **買い切り** — サブスクなし（Store 版）
 
 ## 技術スタック
 
@@ -33,6 +32,9 @@
 | RAM | 8 GB（E2B モデル） | 16 GB（E4B モデル） |
 | ディスク | 4 GB（アプリ + E2B） | 7 GB（アプリ + E4B） |
 | GPU | なし（CPU 推論可） | Vulkan 対応 GPU |
+| ランタイム | [Microsoft Visual C++ 再頒布可能パッケージ](https://aka.ms/vs/17/release/vc_redist.x64.exe) | — |
+
+> **Note**: VC++ ランタイムは多くの Windows PC にインストール済みですが、未インストールの場合は llama-server 起動時に `MSVCP140.dll が見つかりません` エラーが出ます。上記リンクからインストールしてください。
 
 ## ビルド方法
 
@@ -110,4 +112,4 @@ muku/
 
 [GNU General Public License v3.0](LICENSE)
 
-Copyright (c) 2026 Takumi
+Copyright (c) 2026 tkdeveloper
