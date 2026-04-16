@@ -115,7 +115,7 @@ pub async fn call_chat(messages: &[ChatMessage]) -> Result<LlmResponse, String> 
         model: "gemma-4-e2b-it",
         messages,
         temperature: 0.3,
-        max_tokens: 1024,
+        max_tokens: 4096,
         response_format: ResponseFormat { kind: "json_object" },
     };
 

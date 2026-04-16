@@ -133,7 +133,7 @@ pub fn spawn_llama_server(app: &AppHandle) -> std::io::Result<Child> {
         "--port",
         "18080",
         "-c",
-        "4096",
+        "8192",
         "-ngl",
         "99",
         "--jinja",

@@ -68,7 +68,7 @@ export default function ChatView({
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.currentTarget.value)}
-          placeholder="タスクを話しかける…"
+          placeholder="タスクについて聞く・頼む…"
           disabled={pending}
         />
         <button type="submit" disabled={pending || input.trim() === ''}>
