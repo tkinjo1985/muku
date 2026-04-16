@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { clearAllMessages } from '../lib/db';
-import { loadModelSelection, loadSettings, saveSettings } from '../lib/settings';
+import { loadModelSelection, loadSettings, loadUsername, saveSettings, saveUsername } from '../lib/settings';
 import {
   DEFAULT_SETTINGS,
   MODEL_INFO,
@@ -44,6 +44,7 @@ export default function SettingsView() {
 
   return (
     <div className="settings-view">
+      <UsernameSection />
       <ModelSection />
 
       <section className="settings-section">
@@ -262,5 +263,49 @@ function ClearHistoryButton() {
       <button className="settings-danger" onClick={onClear}>削除する</button>
       <button className="settings-cancel" onClick={() => setConfirming(false)}>キャンセル</button>
     </div>
+  );
+}
+
+function UsernameSection() {
+  const [name, setName] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const n = await loadUsername();
+      setName(n);
+      setLoaded(true);
+    })();
+  }, []);
+
+  async function onSave() {
+    await saveUsername(name.trim());
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  if (!loaded) return null;
+
+  return (
+    <section className="settings-section">
+      <h2>呼び名</h2>
+      <label className="settings-row">
+        <span>ムクからの呼び方</span>
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => { setName(e.currentTarget.value); setSaved(false); }}
+          placeholder="未設定"
+          style={{ flex: 1 }}
+        />
+      </label>
+      <div className="settings-detail">設定するとムクがこの名前で呼びかけます</div>
+      <div className="settings-actions">
+        <button className="settings-save" onClick={onSave}>
+          {saved ? '保存済み' : '保存'}
+        </button>
+      </div>
+    </section>
   );
 }

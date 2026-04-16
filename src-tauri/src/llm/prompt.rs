@@ -91,9 +91,13 @@ pub struct ChatMessage {
     pub content: String,
 }
 
-pub fn build_system_content(now: &str, active_tasks: &[TaskContext]) -> String {
+pub fn build_system_content(now: &str, active_tasks: &[TaskContext], username: Option<&str>) -> String {
     let tasks_json = serde_json::to_string_pretty(active_tasks).unwrap_or_else(|_| "[]".into());
-    format!("{SYSTEM_PROMPT}\n\n現在時刻 (JST): {now}\n\n現在のアクティブなタスク一覧:\n{tasks_json}")
+    let user_line = match username {
+        Some(name) => format!("\nユーザーの呼び名: {name}（会話中この名前で呼ぶこと）"),
+        None => String::new(),
+    };
+    format!("{SYSTEM_PROMPT}\n\n現在時刻 (JST): {now}{user_line}\n\n現在のアクティブなタスク一覧:\n{tasks_json}")
 }
 
 pub fn build_messages(
@@ -101,11 +105,12 @@ pub fn build_messages(
     active_tasks: &[TaskContext],
     history: &[HistoryMessage],
     user_input: &str,
+    username: Option<&str>,
 ) -> Vec<ChatMessage> {
     let mut msgs = Vec::with_capacity(history.len() + 2);
     msgs.push(ChatMessage {
         role: "system".into(),
-        content: build_system_content(now, active_tasks),
+        content: build_system_content(now, active_tasks, username),
     });
     for m in history {
         msgs.push(ChatMessage {

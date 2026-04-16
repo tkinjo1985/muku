@@ -9,6 +9,7 @@ import {
 const STORE_FILE = 'settings.json';
 const NOTIFICATION_KEY = 'notifications';
 const MODEL_KEY = 'model';
+const USERNAME_KEY = 'username';
 
 let _store: Store | null = null;
 
@@ -35,4 +36,15 @@ export async function loadModelSelection(): Promise<ModelSelection> {
   const store = await getStore();
   const saved = await store.get<string>(MODEL_KEY);
   return saved === 'e4b' || saved === 'e2b' ? saved : DEFAULT_MODEL;
+}
+
+export async function loadUsername(): Promise<string> {
+  const store = await getStore();
+  return (await store.get<string>(USERNAME_KEY)) ?? '';
+}
+
+export async function saveUsername(name: string): Promise<void> {
+  const store = await getStore();
+  await store.set(USERNAME_KEY, name);
+  await store.save();
 }

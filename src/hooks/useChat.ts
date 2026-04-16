@@ -12,6 +12,7 @@ import {
 } from '../lib/db';
 import { emitTasksChanged } from '../lib/events';
 import { chatSend, taskToContext, type TaskAction } from '../lib/invoke';
+import { loadUsername } from '../lib/settings';
 import type { Message } from '../types';
 
 function generateId(): string {
@@ -99,9 +100,10 @@ export function useChat() {
     setError(null);
 
     try {
-      const [activeTasks, recentHistory] = await Promise.all([
+      const [activeTasks, recentHistory, username] = await Promise.all([
         listTasks().then((all) => all.filter((t) => t.status === 'todo')),
         listRecentMessages(10),
+        loadUsername(),
       ]);
 
       const response = await chatSend({
@@ -110,6 +112,7 @@ export function useChat() {
         history: recentHistory
           .filter((m) => m.id !== userMsg.id)
           .map((m) => ({ role: m.role, content: m.content })),
+        username,
       });
 
       const assistantMsg = await addMessage('assistant', response.message);

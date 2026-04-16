@@ -51,10 +51,12 @@ export async function chatSend(args: {
   input: string;
   activeTasks: TaskContext[];
   history: HistoryMessage[];
+  username: string;
 }): Promise<LlmResponse> {
   return invoke<LlmResponse>('chat_send', {
     input: args.input,
     activeTasks: args.activeTasks,
     history: args.history,
+    username: args.username,
   });
 }

@@ -15,8 +15,10 @@ pub async fn chat_send(
     input: String,
     active_tasks: Vec<TaskContext>,
     history: Vec<HistoryMessage>,
+    username: String,
 ) -> Result<LlmResponse, String> {
     let now = now_jst();
-    let messages = build_messages(&now, &active_tasks, &history, &input);
+    let uname = if username.trim().is_empty() { None } else { Some(username.trim().to_string()) };
+    let messages = build_messages(&now, &active_tasks, &history, &input, uname.as_deref());
     call_chat(&messages).await
 }
