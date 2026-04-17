@@ -112,7 +112,7 @@ impl From<RawLlmResponse> for LlmResponse {
 
 pub async fn call_chat(messages: &[ChatMessage]) -> Result<LlmResponse, String> {
     let body = ChatRequest {
-        model: "gemma-4-e2b-it",
+        model: "qwen3.5",
         messages,
         temperature: 0.3,
         max_tokens: 4096,
@@ -144,7 +144,33 @@ pub async fn call_chat(messages: &[ChatMessage]) -> Result<LlmResponse, String> 
         .map(|c| c.message.content.clone())
         .ok_or_else(|| "LLM returned empty choices".to_string())?;
 
-    serde_json::from_str::<RawLlmResponse>(&content)
+    let cleaned = strip_thinking(&content);
+
+    serde_json::from_str::<RawLlmResponse>(&cleaned)
         .map(LlmResponse::from)
         .map_err(|e| format!("Failed to parse LLM JSON: {e}. Raw content: {content}"))
+}
+
+fn strip_thinking(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    loop {
+        match rest.find("<think>") {
+            Some(start) => {
+                out.push_str(&rest[..start]);
+                let after = &rest[start + "<think>".len()..];
+                match after.find("</think>") {
+                    Some(end) => {
+                        rest = &after[end + "</think>".len()..];
+                    }
+                    None => break,
+                }
+            }
+            None => {
+                out.push_str(rest);
+                break;
+            }
+        }
+    }
+    out.trim().to_string()
 }

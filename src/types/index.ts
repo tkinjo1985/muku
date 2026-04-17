@@ -23,7 +23,7 @@ export interface Message {
 
 export type TabKey = 'chat' | 'tasks' | 'settings';
 
-export type ModelSelection = 'e2b' | 'e4b';
+export type ModelSelection = 'qwen2b' | 'qwen4b' | 'qwen9b';
 
 export interface ModelInfo {
   label: string;
@@ -34,23 +34,34 @@ export interface ModelInfo {
 }
 
 export const MODEL_INFO: Record<ModelSelection, ModelInfo> = {
-  e2b: {
-    label: '速度優先（Gemma 4 E2B）',
-    params: '2.3B',
-    diskGb: 3.1,
-    ramGb: 5,
+  qwen2b: {
+    label: '最軽量（Qwen3.5 2B）',
+    params: '2B',
+    diskGb: 1.3,
+    ramGb: 4,
+    note: '最速・低スペック向け（GPU 必須。CPU では応答が不安定）',
+  },
+  qwen4b: {
+    label: '速度優先（Qwen3.5 4B）',
+    params: '4B',
+    diskGb: 2.7,
+    ramGb: 6,
     note: '軽量・応答速い',
   },
-  e4b: {
-    label: '精度優先（Gemma 4 E4B）',
-    params: '4.5B',
-    diskGb: 5.3,
-    ramGb: 8,
+  qwen9b: {
+    label: '精度優先（Qwen3.5 9B）',
+    params: '9B',
+    diskGb: 5.7,
+    ramGb: 12,
     note: '複雑な指示に強い',
   },
 };
 
-export const DEFAULT_MODEL: ModelSelection = 'e2b';
+export const DEFAULT_MODEL: ModelSelection = 'qwen4b';
+
+export type ComputeMode = 'gpu' | 'cpu';
+
+export const DEFAULT_COMPUTE: ComputeMode = 'gpu';
 
 export type LlmStatus =
   | { kind: 'checking' }

@@ -42,39 +42,76 @@ use tauri_plugin_store::StoreExt;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModelSelection {
-    E2B,
-    E4B,
+    Qwen2B,
+    Qwen4B,
+    Qwen9B,
 }
 
 impl ModelSelection {
     pub fn id(self) -> &'static str {
         match self {
-            ModelSelection::E2B => "e2b",
-            ModelSelection::E4B => "e4b",
+            ModelSelection::Qwen2B => "qwen2b",
+            ModelSelection::Qwen4B => "qwen4b",
+            ModelSelection::Qwen9B => "qwen9b",
         }
     }
 
     pub fn filename(self) -> &'static str {
         match self {
-            ModelSelection::E2B => "gemma-4-E2B-it-Q4_K_M.gguf",
-            ModelSelection::E4B => "gemma-4-E4B-it-Q4_K_M.gguf",
+            ModelSelection::Qwen2B => "Qwen3.5-2B-Q4_K_M.gguf",
+            ModelSelection::Qwen4B => "Qwen3.5-4B-Q4_K_M.gguf",
+            ModelSelection::Qwen9B => "Qwen3.5-9B-Q4_K_M.gguf",
         }
     }
 
     pub fn url(self) -> &'static str {
         match self {
-            ModelSelection::E2B => "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf",
-            ModelSelection::E4B => "https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf",
+            ModelSelection::Qwen2B => "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf",
+            ModelSelection::Qwen4B => "https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf",
+            ModelSelection::Qwen9B => "https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf",
         }
     }
 
     pub fn parse(s: &str) -> Option<Self> {
         match s {
-            "e2b" => Some(ModelSelection::E2B),
-            "e4b" => Some(ModelSelection::E4B),
+            "qwen2b" => Some(ModelSelection::Qwen2B),
+            "qwen4b" => Some(ModelSelection::Qwen4B),
+            "qwen9b" => Some(ModelSelection::Qwen9B),
             _ => None,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ComputeMode {
+    Gpu,
+    Cpu,
+}
+
+impl ComputeMode {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "gpu" => Some(ComputeMode::Gpu),
+            "cpu" => Some(ComputeMode::Cpu),
+            _ => None,
+        }
+    }
+
+    pub fn ngl(self) -> &'static str {
+        match self {
+            ComputeMode::Gpu => "99",
+            ComputeMode::Cpu => "0",
+        }
+    }
+}
+
+pub fn read_compute_mode(app: &AppHandle) -> ComputeMode {
+    app.store("settings.json")
+        .ok()
+        .and_then(|s| s.get("compute"))
+        .and_then(|v| v.as_str().map(str::to_string))
+        .and_then(|s| ComputeMode::parse(&s))
+        .unwrap_or(ComputeMode::Gpu)
 }
 
 pub fn read_model_selection(app: &AppHandle) -> ModelSelection {
@@ -83,7 +120,7 @@ pub fn read_model_selection(app: &AppHandle) -> ModelSelection {
         .and_then(|s| s.get("model"))
         .and_then(|v| v.as_str().map(str::to_string))
         .and_then(|s| ModelSelection::parse(&s))
-        .unwrap_or(ModelSelection::E2B)
+        .unwrap_or(ModelSelection::Qwen4B)
 }
 
 fn models_dir(app: &AppHandle) -> PathBuf {
@@ -108,6 +145,10 @@ pub fn resolve_model_path(app: &AppHandle) -> PathBuf {
     models_dir(app).join(read_model_selection(app).filename())
 }
 
+pub fn resolve_models_dir(app: &AppHandle) -> PathBuf {
+    models_dir(app)
+}
+
 pub fn resolve_model_url(app: &AppHandle) -> &'static str {
     read_model_selection(app).url()
 }
@@ -116,9 +157,17 @@ pub fn spawn_llama_server(app: &AppHandle) -> std::io::Result<Child> {
     let bin_dir = resolve_binaries_dir();
     let exe = bin_dir.join("llama-server-x86_64-pc-windows-msvc.exe");
     let model = resolve_model_path(app);
+    let compute = read_compute_mode(app);
+    let threads = num_cpus::get_physical().max(1).to_string();
 
     eprintln!("[muku] spawning llama-server: {}", exe.display());
     eprintln!("[muku] model: {}", model.display());
+    eprintln!(
+        "[muku] compute: {:?} (ngl={}, threads={})",
+        compute,
+        compute.ngl(),
+        threads
+    );
 
     let mut cmd = Command::new(&exe);
     cmd.current_dir(&bin_dir)
@@ -135,7 +184,16 @@ pub fn spawn_llama_server(app: &AppHandle) -> std::io::Result<Child> {
         "-c",
         "8192",
         "-ngl",
-        "99",
+        compute.ngl(),
+        "-t",
+        threads.as_str(),
+        "--flash-attn",
+        "on",
+        "-ctk",
+        "q8_0",
+        "-ctv",
+        "q8_0",
+        "--no-mmproj",
         "--jinja",
     ]);
 
@@ -288,6 +346,9 @@ pub fn run() {
             llm_init::get_llm_status,
             llm_init::retry_llm_init,
             llm_init::switch_model,
+            llm_init::switch_compute,
+            llm_init::get_models_dir,
+            llm_init::open_models_dir,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

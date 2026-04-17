@@ -1,7 +1,9 @@
 import { load, type Store } from '@tauri-apps/plugin-store';
 import {
+  DEFAULT_COMPUTE,
   DEFAULT_MODEL,
   DEFAULT_SETTINGS,
+  type ComputeMode,
   type ModelSelection,
   type NotificationSettings,
 } from '../types';
@@ -9,6 +11,7 @@ import {
 const STORE_FILE = 'settings.json';
 const NOTIFICATION_KEY = 'notifications';
 const MODEL_KEY = 'model';
+const COMPUTE_KEY = 'compute';
 const USERNAME_KEY = 'username';
 
 let _store: Store | null = null;
@@ -35,7 +38,13 @@ export async function saveSettings(s: NotificationSettings): Promise<void> {
 export async function loadModelSelection(): Promise<ModelSelection> {
   const store = await getStore();
   const saved = await store.get<string>(MODEL_KEY);
-  return saved === 'e4b' || saved === 'e2b' ? saved : DEFAULT_MODEL;
+  return saved === 'qwen2b' || saved === 'qwen4b' || saved === 'qwen9b' ? saved : DEFAULT_MODEL;
+}
+
+export async function loadComputeMode(): Promise<ComputeMode> {
+  const store = await getStore();
+  const saved = await store.get<string>(COMPUTE_KEY);
+  return saved === 'cpu' || saved === 'gpu' ? saved : DEFAULT_COMPUTE;
 }
 
 export async function loadUsername(): Promise<string> {

@@ -7,7 +7,8 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    job_guard, resolve_model_path, resolve_model_url, spawn_llama_server, SidecarHandle,
+    job_guard, resolve_model_path, resolve_model_url, resolve_models_dir, spawn_llama_server,
+    SidecarHandle,
 };
 
 const LLAMA_HEALTH_URL: &str = "http://127.0.0.1:18080/health";
@@ -209,6 +210,43 @@ pub fn retry_llm_init(app: AppHandle, state: tauri::State<'_, LlmStatusState>) -
 }
 
 #[tauri::command]
+pub fn get_models_dir(app: AppHandle) -> String {
+    resolve_models_dir(&app).to_string_lossy().to_string()
+}
+
+#[tauri::command]
+pub fn open_models_dir(app: AppHandle) -> Result<(), String> {
+    let dir = resolve_models_dir(&app);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 pub fn switch_model(app: AppHandle, selection: String) -> Result<(), String> {
     use tauri_plugin_store::StoreExt;
 
@@ -220,6 +258,27 @@ pub fn switch_model(app: AppHandle, selection: String) -> Result<(), String> {
     store.set("model", serde_json::Value::String(selection));
     store.save().map_err(|e| e.to_string())?;
 
+    restart_llm(app);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn switch_compute(app: AppHandle, mode: String) -> Result<(), String> {
+    use tauri_plugin_store::StoreExt;
+
+    if crate::ComputeMode::parse(&mode).is_none() {
+        return Err(format!("unknown compute mode: {mode}"));
+    }
+
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    store.set("compute", serde_json::Value::String(mode));
+    store.save().map_err(|e| e.to_string())?;
+
+    restart_llm(app);
+    Ok(())
+}
+
+fn restart_llm(app: AppHandle) {
     if let Some(handle) = app.try_state::<SidecarHandle>() {
         if let Ok(mut guard) = handle.0.lock() {
             if let Some(mut child) = guard.take() {
@@ -234,6 +293,4 @@ pub fn switch_model(app: AppHandle, selection: String) -> Result<(), String> {
     tauri::async_runtime::spawn(async move {
         init(app_clone).await;
     });
-
-    Ok(())
 }

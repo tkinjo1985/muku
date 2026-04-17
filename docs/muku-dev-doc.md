@@ -25,7 +25,7 @@
 | デスクトップフレームワーク | Tauri v2 | Rust + WebView2ベース。軽量で高速 |
 | フロントエンド | React + TypeScript + Vite | Tauri公式テンプレート対応 |
 | ローカルLLM推論 | llama.cpp (サーバーモード) | Tauriのsidecarとしてバンドル |
-| LLMモデル | Gemma 4 12B (GGUF形式, Q4_K_M量子化推奨) | 初回起動時にダウンロード or インストーラー同梱 |
+| LLMモデル | Qwen3.5 2B / 4B / 9B (GGUF, Q4_K_M) | 初回起動時にダウンロード。設定画面で切替可能 |
 | データ永続化 | SQLite (via Tauri SQLプラグイン) | ローカルにタスク・会話履歴を保存 |
 | 通知 | Tauri Notificationプラグイン | Windows ネイティブ通知 |
 | グローバルショートカット | Tauri Global Shortcutプラグイン | ホットキーでウィンドウ呼び出し |
@@ -57,7 +57,7 @@
 │                                    │              │
 │  ┌─────────────────────────────────▼────────────┐│
 │  │         llama.cpp server (Sidecar)            ││
-│  │         Gemma 4 12B GGUF                      ││
+│  │         Qwen3.5 GGUF (2B / 4B / 9B)           ││
 │  │         localhost:18080                        ││
 │  └───────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────┘
@@ -119,7 +119,7 @@ muku/
 │   │   └── llama-server-x86_64-pc-windows-msvc.exe
 │   │
 │   └── models/                   # LLMモデルファイル配置先
-│       └── .gitkeep              # gemma-4-12b-Q4_K_M.gguf (git管理外)
+│       └── .gitkeep              # qwen*-Q4_K_M.gguf (git管理外)
 │
 ├── package.json
 ├── tsconfig.json
@@ -178,7 +178,7 @@ fn main() {
                 .sidecar("llama-server")
                 .expect("llama-server sidecar not found")
                 .args([
-                    "-m", "models/gemma-4-12b-Q4_K_M.gguf",
+                    "-m", "models/qwen3.5-4b-Q4_K_M.gguf",
                     "--host", "127.0.0.1",
                     "--port", "18080",
                     "-c", "4096",        // context length
@@ -234,7 +234,7 @@ POST http://127.0.0.1:18080/v1/chat/completions
 Content-Type: application/json
 
 {
-  "model": "gemma-4-12b",
+  "model": "qwen3.5",
   "messages": [
     {
       "role": "system",
@@ -444,7 +444,7 @@ npm run tauri bundle -- --config src-tauri/tauri.microsoftstore.conf.json
 
 ### Phase 2: LLM統合
 - [ ] llama.cppバイナリのsidecar組み込み
-- [ ] Gemma 4 GGUFモデルの動作検証
+- [ ] Qwen3.5 GGUFモデルの動作検証
 - [ ] システムプロンプトの調整・テスト
 - [ ] JSONレスポンスのパースとタスクDB反映
 
@@ -493,4 +493,4 @@ npm run tauri bundle -- --config src-tauri/tauri.microsoftstore.conf.json
 - Tauri Global Shortcut: https://v2.tauri.app/ja/plugin/global-shortcut/
 - Tauri Microsoft Store配布: https://v2.tauri.app/ja/distribute/microsoft-store/
 - llama.cpp: https://github.com/ggml-org/llama.cpp
-- Gemma: https://ai.google.dev/gemma
+- Qwen: https://qwenlm.github.io/

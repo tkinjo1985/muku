@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { clearAllMessages } from '../lib/db';
-import { loadModelSelection, loadSettings, loadUsername, saveSettings, saveUsername } from '../lib/settings';
+import {
+  loadComputeMode,
+  loadModelSelection,
+  loadSettings,
+  loadUsername,
+  saveSettings,
+  saveUsername,
+} from '../lib/settings';
 import {
   DEFAULT_SETTINGS,
   MODEL_INFO,
+  type ComputeMode,
   type ModelSelection,
   type NotificationSettings,
 } from '../types';
@@ -46,6 +54,7 @@ export default function SettingsView() {
     <div className="settings-view">
       <UsernameSection />
       <ModelSection />
+      <ComputeSection />
 
       <section className="settings-section">
         <label className="settings-row toggle">
@@ -147,11 +156,18 @@ function ModelSection() {
   const [pending, setPending] = useState<ModelSelection | null>(null);
   const [switching, setSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [modelsDir, setModelsDir] = useState<string>('');
 
   useEffect(() => {
     void (async () => {
       const sel = await loadModelSelection();
       setCurrent(sel);
+      try {
+        const dir = await invoke<string>('get_models_dir');
+        setModelsDir(dir);
+      } catch {
+        // noop
+      }
     })();
   }, []);
 
@@ -186,7 +202,7 @@ function ModelSection() {
   return (
     <section className="settings-section">
       <h2>AI モデル</h2>
-      {(['e2b', 'e4b'] as ModelSelection[]).map((m) => {
+      {(['qwen2b', 'qwen4b', 'qwen9b'] as ModelSelection[]).map((m) => {
         const info = MODEL_INFO[m];
         return (
           <label key={m} className="settings-radio">
@@ -214,9 +230,108 @@ function ModelSection() {
         <div className="settings-confirm">
           <span>
             切替するとモデルを読み込み直します
-            {pending === 'e4b' && current === 'e2b' ? '（5.3 GB のダウンロードが発生）' : ''}
-            {pending === 'e2b' && current === 'e4b' ? '（3.1 GB のダウンロードが発生、既に DL 済みならスキップ）' : ''}
+            {pending
+              ? `（${MODEL_INFO[pending].diskGb} GB のダウンロードが発生、既に DL 済みならスキップ）`
+              : ''}
           </span>
+          <button className="settings-save" onClick={onConfirmSwitch} disabled={switching}>
+            {switching ? '切替中…' : '切り替える'}
+          </button>
+          <button
+            className="settings-cancel"
+            onClick={() => setPending(null)}
+            disabled={switching}
+          >
+            キャンセル
+          </button>
+        </div>
+      )}
+      {error && <div className="settings-detail splash-error">{error}</div>}
+      {modelsDir && (
+        <div className="settings-model-path">
+          <div className="settings-detail">モデルの保存場所</div>
+          <div className="settings-path-row">
+            <code className="settings-path">{modelsDir}</code>
+            <button
+              className="settings-cancel"
+              onClick={() => { void invoke('open_models_dir'); }}
+            >
+              フォルダを開く
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ComputeSection() {
+  const [current, setCurrent] = useState<ComputeMode | null>(null);
+  const [pending, setPending] = useState<ComputeMode | null>(null);
+  const [switching, setSwitching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void (async () => {
+      const mode = await loadComputeMode();
+      setCurrent(mode);
+    })();
+  }, []);
+
+  if (!current) {
+    return (
+      <section className="settings-section">
+        <h2>演算デバイス</h2>
+        <div className="settings-detail">読み込み中…</div>
+      </section>
+    );
+  }
+
+  const target = pending ?? current;
+  const changed = pending !== null && pending !== current;
+
+  async function onConfirmSwitch() {
+    if (!pending || pending === current) return;
+    setSwitching(true);
+    setError(null);
+    try {
+      await invoke('switch_compute', { mode: pending });
+      setCurrent(pending);
+      setPending(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSwitching(false);
+    }
+  }
+
+  const OPTIONS: { id: ComputeMode; label: string; note: string }[] = [
+    { id: 'gpu', label: 'GPU（Vulkan）', note: '対応 GPU があれば高速。なければ自動で CPU にフォールバック' },
+    { id: 'cpu', label: 'CPU のみ', note: 'GPU を使わず CPU で推論する（低速だが確実）' },
+  ];
+
+  return (
+    <section className="settings-section">
+      <h2>演算デバイス</h2>
+      {OPTIONS.map((o) => (
+        <label key={o.id} className="settings-radio">
+          <input
+            type="radio"
+            name="compute"
+            value={o.id}
+            checked={target === o.id}
+            onChange={() => setPending(o.id)}
+            disabled={switching}
+          />
+          <div>
+            <div>{o.label}</div>
+            <div className="settings-detail">{o.note}</div>
+          </div>
+        </label>
+      ))}
+      {changed && (
+        <div className="settings-confirm">
+          <span>切替するとモデルを読み込み直します</span>
           <button className="settings-save" onClick={onConfirmSwitch} disabled={switching}>
             {switching ? '切替中…' : '切り替える'}
           </button>

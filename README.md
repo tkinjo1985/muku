@@ -11,7 +11,7 @@
 - **プライバシー最優先** — タスクデータは一切外部に送信されない
 - **常駐 & 即起動** — システムトレイ常駐、グローバルショートカットで瞬時に呼び出し
 - **期限通知** — タスクの期限前・超過時に Windows 通知 + チャット内リマインド
-- **モデル選択** — 速度優先（Gemma 4 E2B / 3.1GB）と精度優先（Gemma 4 E4B / 5.3GB）を設定から切替
+- **モデル選択** — 最軽量（Qwen3.5 2B / 1.3GB）・速度優先（Qwen3.5 4B / 2.7GB）・精度優先（Qwen3.5 9B / 5.7GB）を設定から切替
 
 ## 技術スタック
 
@@ -20,7 +20,7 @@
 | デスクトップフレームワーク | Tauri v2 (Rust + WebView2) |
 | フロントエンド | React + TypeScript + Vite |
 | ローカル LLM 推論 | llama.cpp (Vulkan / CPU) |
-| LLM モデル | Gemma 4 E2B / E4B (GGUF Q4_K_M) |
+| LLM モデル | Qwen3.5 2B / 4B / 9B (GGUF Q4_K_M) |
 | データ永続化 | SQLite |
 | 通知 | Windows Toast (tauri-winrt-notification) |
 
@@ -29,12 +29,14 @@
 | 項目 | 最小 | 推奨 |
 |------|------|------|
 | OS | Windows 10 (64-bit) | Windows 11 |
-| RAM | 8 GB（E2B モデル） | 16 GB（E4B モデル） |
-| ディスク | 4 GB（アプリ + E2B） | 7 GB（アプリ + E4B） |
-| GPU | なし（CPU 推論可） | Vulkan 対応 GPU |
+| RAM | 8 GB（4B モデル） | 16 GB（9B モデル） |
+| ディスク | 4 GB（アプリ + 4B） | 8 GB（アプリ + 9B） |
+| GPU | Vulkan 対応 GPU | Vulkan 対応 GPU（VRAM 4 GB+） |
 | ランタイム | [Microsoft Visual C++ 再頒布可能パッケージ](https://aka.ms/vs/17/release/vc_redist.x64.exe) | — |
 
 > **Note**: VC++ ランタイムは多くの Windows PC にインストール済みですが、未インストールの場合は llama-server 起動時に `MSVCP140.dll が見つかりません` エラーが出ます。上記リンクからインストールしてください。
+>
+> **GPU について**: CPU のみでも動作はしますが、2B モデルでも応答が空になる・JSON パースに失敗するなど実用には耐えません。Vulkan 対応 GPU（内蔵 GPU でも可）の利用を強く推奨します。
 
 ## ビルド方法
 
@@ -59,13 +61,17 @@ mv src-tauri/binaries/llama-server.exe src-tauri/binaries/llama-server-x86_64-pc
 ### モデルの準備（開発用）
 
 ```bash
-# E2B（3.1 GB、デフォルト）
-curl -L -o src-tauri/models/gemma-4-E2B-it-Q4_K_M.gguf \
-  https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf
+# 2B（1.3 GB、最軽量）
+curl -L -o src-tauri/models/Qwen3.5-2B-Q4_K_M.gguf \
+  https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf
 
-# E4B（5.3 GB、精度優先）
-curl -L -o src-tauri/models/gemma-4-E4B-it-Q4_K_M.gguf \
-  https://huggingface.co/ggml-org/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf
+# 4B（2.7 GB、デフォルト）
+curl -L -o src-tauri/models/Qwen3.5-4B-Q4_K_M.gguf \
+  https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf
+
+# 9B（5.7 GB、精度優先）
+curl -L -o src-tauri/models/Qwen3.5-9B-Q4_K_M.gguf \
+  https://huggingface.co/unsloth/Qwen3.5-9B-GGUF/resolve/main/Qwen3.5-9B-Q4_K_M.gguf
 ```
 
 > **Note**: リリースビルドではモデルは初回起動時に自動ダウンロードされます。`src-tauri/models/` は開発時のみ必要です。
